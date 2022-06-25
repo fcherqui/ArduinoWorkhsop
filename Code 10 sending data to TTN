@@ -1,0 +1,182 @@
+// sending data to TTN
+
+/*
+ * HC-SR04 ultrasonic
+ * +
+ * DS18B20 temp sensor
+ * +
+ * Median
+ * +
+ * TTN (LoRaWAN)
+*/
+// librairies declaration
+#include <OneWire.h> // to communicate with the temperature sensor
+#include <DallasTemperature.h> // to command the temperature sensor
+#include <RunningMedian.h> // to calculate mediants, from https://github.com/RobTillaart/Arduino/tree/master/libraries/RunningMedian
+#include <MKRWAN_v2.h> // to control the LoRaWAN Modem (execute first the MKRWANFWUpdate_standalone)
+
+LoRaModem modem; // declare the LoRaWAN modem
+
+// variables declaration
+String codeversion="1.10";
+double ustime; //variable used to measure the US time [µs]
+float usdist; // variable used to measure the distance [m]
+float temp; // variable used to measure the temperature [°C]
+unsigned int nsamples=20; // number of samples [-]
+String appEui="0000000000000001";                 // from the TTN application (end device) - unique id of the end device
+String appKey="56626DED69B48A0264F03A5EFBE5518D"; // from the TTN application (end device) - application key for encryption
+int counter=0; // counter to check that we are not missing messages
+
+// Pins wiring (hardware)
+const int TrigPin = 3; // pin to trigger a measure from the ultrasonic sensor
+const int EchoPin = 4; // pin to measure the duration of the sound wave
+#define ONE_WIRE_BUS 6 // Data wire is conntec to the Arduino digital pin 6
+OneWire oneWire(ONE_WIRE_BUS); // Setup a oneWire instance to communicate with any OneWire devices
+DallasTemperature DS18B20(&oneWire); // Pass our oneWire reference to Dallas Temperature sensor 
+
+///////////////////////////////////////////////////
+void setup() //SETUP - EXECUTE ONLY ONCE AT THE START
+{   
+  Serial.begin(9600); // initial serial connection
+  pinMode(TrigPin, OUTPUT); // Set up the pin to start a new ultrasonic measure
+  pinMode(EchoPin, INPUT);  // Set up pin to input mode to detect the ultrasonic wave 
+  DS18B20.begin(); // Start up the temperature sensor library
+  delay(2000); // sometimes it's good to wait a little
+  Serial.println("version: "+codeversion); // write the version in the serial
+  if (!modem.begin(EU868)) { // starts the LoRaWAN modem
+    Serial.println("Failed to start module"); // if the modem doesn't start, stop the program
+    while (1) {}
+  };
+  Serial.print("Your module version is: "); // some information regarding the LoRaWAN modem
+  Serial.println(modem.version());
+  Serial.print("Your device EUI is: ");
+  Serial.println(modem.deviceEUI());
+
+  int connected;
+  appKey.trim(); // remove any unwanted space
+  appEui.trim(); // remove any unwanted space
+  connected = modem.joinOTAA(appEui, appKey); // OTAA connection (join) - Over-the-Air Activation = most secured communication
+  if (!connected) { // check that the modem is connected to the network
+    Serial.println("Something went wrong; are you indoor? Move near a window and retry");
+    while (1) {}
+  }
+} 
+
+//////////////////////////////////////////
+void loop() // MAIN PROGRAM LOOP - FOREVER
+{ 
+  // Measurements
+  temp=single_measure_TEMP(); //DS18B20 measure
+  ustime = advanced_measure(); //ultrasonic measure - duration of signal in µs
+  usdist = time_to_dist(ustime, temp); // convert duration into distance (with / without taking in account the air temperature)
+
+  // Display values
+  Serial.print("Ultrasonic time = ");
+  Serial.print(ustime,0); // duration without decimals
+  Serial.print(" µs and distance = ");
+  Serial.print(usdist,3); // distance in m with 3 decimals (up to the millimeter)
+  Serial.print(" m and temperature = ");
+  Serial.print(temp, 2); // temperature in °C with 2 decimals
+  Serial.println("°C");
+
+  senddata(); // send the data using the LoRaWAN network (TTN = The Things Network)
+  delay(30000); // wait 30 seconds for the next measurement
+}
+
+///////////////////////////////////////////////////////////////////////////
+double single_measure_US() { // SUBROUTINE TO DO ONE ULTRASONIC MEASUREMENT
+  double dtime; // variable use to store the duration of the pulse (for the measure of the distance)
+  digitalWrite(TrigPin, LOW); 
+  delayMicroseconds(10); // To be sure that the pin is low (0 V)
+  digitalWrite(TrigPin, HIGH); 
+  delayMicroseconds(10); // Generate a 10us high wave to trigger TrigPin (3.3 V)
+  digitalWrite(TrigPin, LOW); 
+  dtime = pulseIn(EchoPin, HIGH); // measure the duration in microseconds, https://www.arduino.cc/reference/en/language/functions/advanced-io/pulsein/
+  delay(50); //pause (50ms) to make sure there is no interferences with the next measure
+  return dtime; // send back the value from the subroutine to the main program (loop), time is in µs
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+double advanced_measure() { // SUBROUTINE TO CONVERT SEVERAL RAW MEASUREMENT INTO ONE MEASURE
+  double value;
+  RunningMedian samples = RunningMedian(nsamples);
+  Serial.print("  " + String(nsamples) + " samples: ");
+  for(int i= 0; i<nsamples; i++){
+    value = single_measure_US();   //US sensor measure
+    if (value !=0) { //add only value different from zero
+      Serial.print(value,0);
+      Serial.print(", ");
+      samples.add(value);
+    }
+  }
+  double finalvalue=samples.getMedian(); //Return the median value
+  Serial.print(" --> ");
+  Serial.println(finalvalue, 0);
+  return finalvalue; // send back the value from the subroutine to the main program (loop), consolided measure
+}
+
+//////////////////////////////////////////////////
+float time_to_dist(double dtime, float temperat) {
+  float distance =0; // distance in meters
+  if (temperat = 0) {
+    distance = dtime/2*343/1E6;
+  } else {
+    int RH = 50; // median relative humidity
+    distance = dtime/2*(331.4+0.6*temperat+0.0124*RH)/1E6; //simplify formula
+  }
+  return distance;
+}
+
+/////////////////////////////
+float single_measure_TEMP() {
+  float tempDS18B20; // variable use to store the temperature
+  DS18B20.requestTemperatures(); // Call sensors.requestTemperatures() to issue a global temperature and Requests to all devices on the bus
+  tempDS18B20=DS18B20.getTempCByIndex(0);  // Why "byIndex"? You can have more than one IC on the same bus. 0 refers to the first IC on the wire (address)
+  return tempDS18B20; // temperature in °C
+}
+
+/////////////////
+void senddata() {
+  // Data conversion (int)
+  int temperat = temp*1000;
+  int distance=usdist*1000;
+  unsigned int duration = ustime;
+  
+   //  Prepare the data to be sent
+  int err;
+  byte payload[8];
+  payload[0] = counter; // counter
+  payload[1] = temperat/256; // multiple by 1000 to have a two-digit precision
+  payload[2] = temperat%256; // multiple by 1000 to have a two-digit precision
+  payload[3] = distance/256; // value already in mm
+  payload[4] = distance%256; // value already in mm
+  payload[5] = duration/(256*256);
+  payload[6] = duration/256;
+  payload[7] = duration%256;
+  
+  // Send the data
+  modem.setPort(3);
+  modem.beginPacket();
+  modem.write(payload, sizeof(payload));   
+  modem.endPacket(false);
+
+  Serial.println("Message #"+String(counter)+ " sent with temp="+String(temp)+", duration="+String(ustime)+", distance="+String(usdist,3)+".");
+
+  if (counter<255) {counter++;}
+  else {counter=0;}
+}
+
+/*¨PAYLOAD FORMATER
+ *
+function decodeUplink(input) {
+  var cou=input.bytes[0];
+  var temp=(input.bytes[1]*256 + input.bytes[2])/1000;
+  var dist=input.bytes[3]*256 + input.bytes[4];
+  var dur=input.bytes[5]*256*256 + input.bytes[6]*256 + input.bytes[7];
+  return {
+    data: {
+        counter: cou, termperature: temp, duration: dur, distance: dist, version:1 
+    }
+  };
+}
+ */
