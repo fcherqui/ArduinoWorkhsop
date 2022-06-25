@@ -1,0 +1,53 @@
+//Measure time of flight
+
+/*
+ * HC-SR04 ultrasonic
+ * 
+*/
+// librairies declaration
+#include <MKRWAN_v2.h> // to control the LoRaWAN Modem (execute first the MKRWANFWUpdate_standalone)
+
+// variables declaration
+String codeversion="1.05";
+double ustime; //variable used to measure the US time [µs]
+
+// Pins wiring (hardware)
+const int TrigPin = 3; // pin to trigger a measure from the ultrasonic sensor
+const int EchoPin = 4; // pin to measure the duration of the sound wave
+
+///////////////////////////////////////////////////
+void setup() //SETUP - EXECUTE ONLY ONCE AT THE START
+{   
+  Serial.begin(9600); // initial serial connection
+  pinMode(TrigPin, OUTPUT); // Set up the pin to start a new ultrasonic measure
+  pinMode(EchoPin, INPUT);  // Set up pin to input mode to detect the ultrasonic wave 
+  delay(2000); // sometimes it's good to wait a little
+  Serial.println("version: "+codeversion); // write the version in the serial
+} 
+
+//////////////////////////////////////////
+void loop() // MAIN PROGRAM LOOP - FOREVER
+{ 
+  // Measurements
+  ustime = single_measure_US(); //ultrasonic measure - duration of signal in µs
+
+  // Display values
+  Serial.print("Ultrasonic time = ");
+  Serial.print(ustime,0); // duration without decimals
+  Serial.println(" µs.");
+
+  delay(30000); // wait 30 seconds for the next measurement
+}
+
+///////////////////////////////////////////////////////////////////////////
+double single_measure_US() { // SUBROUTINE TO DO ONE ULTRASONIC MEASUREMENT
+  double dtime; // variable use to store the duration of the pulse (for the measure of the distance)
+  digitalWrite(TrigPin, LOW); 
+  delayMicroseconds(10); // To be sure that the pin is low (0 V)
+  digitalWrite(TrigPin, HIGH); 
+  delayMicroseconds(10); // Generate a 10us high wave to trigger TrigPin (3.3 V)
+  digitalWrite(TrigPin, LOW); 
+  dtime = pulseIn(EchoPin, HIGH); // measure the duration in microseconds, https://www.arduino.cc/reference/en/language/functions/advanced-io/pulsein/
+  delay(50); //pause (50ms) to make sure there is no interferences with the next measure
+  return dtime; // send back the value from the subroutine to the main program (loop), time is in µs
+}
