@@ -1,0 +1,34 @@
+// Using the MKR – empty shell
+
+/*
+ * HC-SR04 ultrasonic
+ * 
+*/
+// librairies declaration
+#include <MKRWAN_v2.h> // to control the LoRaWAN Modem (execute first the MKRWANFWUpdate_standalone)
+
+// variables declaration
+String codeversion="1.04";
+
+// Pins wiring (hardware)
+
+///////////////////////////////////////////////////
+void setup() //SETUP - EXECUTE ONLY ONCE AT THE START
+{   
+  Serial.begin(9600); // initial serial connection
+  delay(2000); // sometimes it's good to wait a little
+  Serial.println("version: "+codeversion); // write the version in the serial
+} 
+
+//////////////////////////////////////////
+void loop() // MAIN PROGRAM LOOP - FOREVER
+{ 
+  // Measurements
+
+  // Display values
+  Serial.print("Ultrasonic time = ");
+  Serial.print("your value"); // duration without decimals
+  Serial.println(" µs.");
+
+  delay(30000); // wait 30 seconds for the next measurement
+}
