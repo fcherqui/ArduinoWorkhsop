@@ -1,0 +1,89 @@
+// Compensate for temperature
+
+/*
+ * HC-SR04 ultrasonic
+ * +
+ * DS18B20 temp sensor
+ * 
+*/
+// librairies declaration
+#include <OneWire.h> // to communicate with the temperature sensor
+#include <DallasTemperature.h> // to command the temperature sensor
+#include <MKRWAN_v2.h> // to control the LoRaWAN Modem (execute first the MKRWANFWUpdate_standalone)
+
+// variables declaration
+String codeversion="1.08";
+double ustime; //variable used to measure the US time [µs]
+float usdist; // variable used to measure the distance [m]
+float temp; // variable used to measure the temperature [°C]
+
+// Pins wiring (hardware)
+const int TrigPin = 3; // pin to trigger a measure from the ultrasonic sensor
+const int EchoPin = 4; // pin to measure the duration of the sound wave
+#define ONE_WIRE_BUS 6 // Data wire is conntec to the Arduino digital pin 6
+OneWire oneWire(ONE_WIRE_BUS); // Setup a oneWire instance to communicate with any OneWire devices
+DallasTemperature DS18B20(&oneWire); // Pass our oneWire reference to Dallas Temperature sensor 
+
+///////////////////////////////////////////////////
+void setup() //SETUP - EXECUTE ONLY ONCE AT THE START
+{   
+  Serial.begin(9600); // initial serial connection
+  pinMode(TrigPin, OUTPUT); // Set up the pin to start a new ultrasonic measure
+  pinMode(EchoPin, INPUT);  // Set up pin to input mode to detect the ultrasonic wave 
+  DS18B20.begin(); // Start up the temperature sensor library
+  delay(2000); // sometimes it's good to wait a little
+  Serial.println("version: "+codeversion); // write the version in the serial
+} 
+
+//////////////////////////////////////////
+void loop() // MAIN PROGRAM LOOP - FOREVER
+{ 
+  // Measurements
+  temp=single_measure_TEMP(); //DS18B20 measure
+  ustime = single_measure_US(); //ultrasonic measure - duration of signal in µs
+  usdist = time_to_dist(ustime, temp); // convert duration into distance (with / without taking in account the air temperature)
+
+  // Display values
+  Serial.print("Ultrasonic time = ");
+  Serial.print(ustime,0); // duration without decimals
+  Serial.print(" µs and distance = ");
+  Serial.print(usdist,3); // distance in m with 3 decimals (up to the millimeter)
+  Serial.print(" m and temperature = ");
+  Serial.print(temp, 2); // temperature in °C with 2 decimals
+  Serial.println("°C");
+
+  delay(30000); // wait 30 seconds for the next measurement
+}
+
+///////////////////////////////////////////////////////////////////////////
+double single_measure_US() { // SUBROUTINE TO DO ONE ULTRASONIC MEASUREMENT
+  double dtime; // variable use to store the duration of the pulse (for the measure of the distance)
+  digitalWrite(TrigPin, LOW); 
+  delayMicroseconds(10); // To be sure that the pin is low (0 V)
+  digitalWrite(TrigPin, HIGH); 
+  delayMicroseconds(10); // Generate a 10us high wave to trigger TrigPin (3.3 V)
+  digitalWrite(TrigPin, LOW); 
+  dtime = pulseIn(EchoPin, HIGH); // measure the duration in microseconds, https://www.arduino.cc/reference/en/language/functions/advanced-io/pulsein/
+  delay(50); //pause (50ms) to make sure there is no interferences with the next measure
+  return dtime; // send back the value from the subroutine to the main program (loop), time is in µs
+}
+
+//////////////////////////////////////////////////
+float time_to_dist(double dtime, float temperat) {
+  float distance =0; // distance in meters
+  if (temperat = 0) {
+    distance = dtime/2*343/1E6;
+  } else {
+    int RH = 50; // median relative humidity
+    distance = dtime/2*(331.4+0.6*temperat+0.0124*RH)/1E6; //simplify formula
+  }
+  return distance;
+}
+
+/////////////////////////////
+float single_measure_TEMP() {
+  float tempDS18B20; // variable use to store the temperature
+  DS18B20.requestTemperatures(); // Call sensors.requestTemperatures() to issue a global temperature and Requests to all devices on the bus
+  tempDS18B20=DS18B20.getTempCByIndex(0);  // Why "byIndex"? You can have more than one IC on the same bus. 0 refers to the first IC on the wire (address)
+  return tempDS18B20; // temperature in °C
+}
