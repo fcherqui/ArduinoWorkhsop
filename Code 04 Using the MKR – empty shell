@@ -30,5 +30,5 @@ void loop() // MAIN PROGRAM LOOP - FOREVER
   Serial.print("your value"); // duration without decimals
   Serial.println(" µs.");
 
-  delay(30000); // wait 30 seconds for the next measurement
+  delay(10000); // wait 10 seconds for the next measurement
 }
