@@ -40,7 +40,7 @@ void loop() // MAIN PROGRAM LOOP - FOREVER
   Serial.print(usdist,3); // distance in m with 3 decimals (up to the millimeter)
   Serial.println("m.");
 
-  delay(30000); // wait 30 seconds for the next measurement
+  delay(10000); // wait 10 seconds for the next measurement
 }
 
 ///////////////////////////////////////////////////////////////////////////
