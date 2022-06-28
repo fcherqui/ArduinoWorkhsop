@@ -55,7 +55,7 @@ void loop() // MAIN PROGRAM LOOP - FOREVER
   Serial.print(temp, 2); // temperature in °C with 2 decimals
   Serial.println("°C");
 
-  delay(30000); // wait 30 seconds for the next measurement
+  delay(10000); // wait 10 seconds for the next measurement
 }
 
 ///////////////////////////////////////////////////////////////////////////
