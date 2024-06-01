@@ -24,7 +24,7 @@ float usdist; // variable used to measure the distance [m]
 float temp; // variable used to measure the temperature [°C]
 unsigned int nsamples=20; // number of samples [-]
 String appEui="0000000000000001";                 // from the TTN application (end device) - unique id of the end device
-String appKey="56626DED69B48A0264F03A5EFBE5518D"; // from the TTN application (end device) - application key for encryption
+String appKey="CAE50CD13C2D33D16E97873F5C74FD7B"; // from the TTN application (end device) - application key for encryption
 int counter=0; // counter to check that we are not missing messages
 
 // Pins wiring (hardware)
